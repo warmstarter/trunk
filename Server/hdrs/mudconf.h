@@ -110,6 +110,7 @@ struct confdata {
 	int	check_interval;	/* interval between db check/cleans in secs */
 	int	dump_offset;	/* when to take first checkpoint dump */
 	int	check_offset;	/* when to perform first check and clean */
+	int	minflat_time;  /* when to warn if no new dump/flatfile */
 	int	idle_timeout;	/* Boot off players idle this long in secs */
 	int	conn_timeout;	/* Allow this long to connect before booting */
 	int	idle_interval;	/* when to check for idle users */
@@ -910,6 +911,7 @@ extern STATEDATA mudstate;
 #define CF_RWHO_XMIT	0x0040		/* Update remote RWHO data */
 #define CF_ALLOW_RWHO	0x0080		/* Allow the RWHO command */
 #define CF_DEQUEUE	0x0100		/* Remove entries from the queue */
+#define CF_FLATCHECK	0x0200		/* Periodically check for flatfiles */
 
 /* Host information codes */
 

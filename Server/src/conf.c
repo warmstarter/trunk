@@ -179,6 +179,7 @@ NDECL(cf_init)
     mudconf.check_interval = 600;
     mudconf.dump_offset = 0;
     mudconf.check_offset = 300;
+    mudconf.minflat_time = 172800;
     mudconf.idle_timeout = 3600;
     mudconf.conn_timeout = 120;
     mudconf.idle_interval = 60;

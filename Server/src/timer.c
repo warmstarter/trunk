@@ -191,6 +191,13 @@ char	*cmdsave;
 		fork_and_dump(0, (char *)NULL);
 	}
 
+	if ((mudconf.control_flags & CF_FLATCHECK) &&
+	    (mudconf.minflat_time <= mudstate.mushflat_time)) {
+	        mudstate.debug_cmd = (char *)"< flatcheck >";
+		raw_broadcast(0, WIZARD, "Game: There is no recent flatfile dump.");
+
+	}
+
 	/* Idle user check */
 
 	if ((mudconf.control_flags & CF_IDLECHECK) &&

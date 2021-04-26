@@ -26,8 +26,6 @@
 &CREDITS mushcron=mushcron was coded by Myrddin (merlin@firstmagic.com). Permission is granted to distribute the code freely as long as the initial CREDIT attribute is kept intact. This code is located at www.firstmagic.com/~merlin/mushcode
 
 @switch strmatch(version(),*Rhost*)=1,{&CRON_TIME_BACKUP mushcron=|||06|00|;&CRON_JOB_BACKUP mushcron={wmail/unload;@areg/unload;@dump/flat;@purge/time 30}}
-&CRON_TIME_TIMECLOCK mushcron=||||00 02 04 06 08 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 46 48 50 52 54 56 58|
-&CRON_JOB_TIMECLOCK mushcron=@dolist lwho()={@timeonweek ##=[add(get(##/timeonweek),2)]; @timeon ##=[add(get(##/timeon),2)]}
 
 &CRON_TIME_BBTIMEOUT mushcron=|||04|15|
 &CRON_JOB_BBTIMEOUT mushcron=@@ Change This to the Right Dbref# -- @trigger #25/tr_timeout
@@ -35,4 +33,4 @@
 @name mushcron=CRON - Myrddin's mushcron
 
 @set me=!quiet
-@pemit me=%rIf you haven't already, make sure you read the mushcron 'readme' located on Myrddin's MUSH Code web page (www.firstmagic.com/~merlin/mushcode).%r%rThree example jobs have been placed on your mushcron object (TIMECLOCK, TIMEONWEEK-PURGE, and BBTIMEOUT). You'll want to modify or remove all three as they probably won't apply to your game, they're simply there to provide a real quick example of how to use mushcron.%r%rMUSH Cron ([num(CRON)]) construction complete. Once you're ready to start it, simply '@trigger [num(CRON)]/cron'. You'll never need to trigger it again, even between game restart/shutdowns.%r[repeat(=,78)]
+@pemit me=%rIf you haven't already, make sure you read the mushcron 'readme' located on Myrddin's MUSH Code web page (www.firstmagic.com/~merlin/mushcode).%r%rMUSH Cron ([num(CRON)]) construction complete. Once you're ready to start it, simply '@trigger [num(CRON)]/cron'. You'll never need to trigger it again, even between game restart/shutdowns.%r[repeat(=,78)]

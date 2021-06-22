@@ -53,8 +53,8 @@
 @@        to something not easy to guess to enforce new players to use the registration system.
 @@        but to allow wizards to 'connect' like normal.
 @@
-think Please set the @admin parameter file_object to [num(File Object <fo>)].
+think Please set the @admin parameter file_object to [num(File Object <FO>)].
 think Please set the @admin parameter execscriptpath to 'account'
 think Account SubSystem <AS> needs to be placed in the master room [globalroom()].
-think The file_object [num(File Object <fo>)] should not be placed in the master room.
+think The file_object [num(ject <fo>)] should not be placed in the master room.
 think Completed.

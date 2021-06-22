@@ -271,6 +271,8 @@ struct confdata {
         int     restrict_home2; /* Define level of restriction (2nd word) */
 	char    invname[80];    /* Define name of inventory type - default 'backpack' */
 	int     sideeffects;	/* Define sideeffects (set-1,create-2,link-4,pemit-8,tel-16) */
+	int	raw_formatting; /* Allow raw input formatting */
+	int	enforce_checksums; /* Enforce checksums on command matching */
 	int     restrict_sidefx; /* Restrict setting side-effects to bitlevel (0 default/any) */
         int     cpuintervalchk; /* CPU level to check for overflowing CPU processes */
         int     cputimechk;     /* Time notification of time elapses from start of command */
@@ -339,6 +341,7 @@ struct confdata {
 	int	heavy_cpu_max; /* Specify maximum for heavy cpu function-usage */
 	int	lastsite_paranoia;	/* Enable paranoia level on connections */
 	int	pcreate_paranoia;	/* Enable paranoia level on creations */
+	int	pcreate_paranoia_fail;	/* Be paranod even about failed creations */
 	int	max_lastsite_cnt;	/* Count of maximum lastsite information */
 	int	max_lastsite_api;	/* API Count of maximum lastsite information */
 	int	min_con_attempt;	/* Minimum ammount of time between connections */
@@ -444,6 +447,7 @@ struct confdata {
 	int	crypt_rounds;	/* Number of rounds to encrypt -- default 5000 */
 	int	elements_compat;/* Enable elements() compatibility to other codebases */
 	int	null_is_idle;	/* Treat '@@@' like idle for, well, idle */
+	int idle_cmdcount; /* Treat commands used more than X times in _idlestamp as idle */
 	int	iter_loop_max;	/* Infinite iter loop counter */
 	char	exit_separator[SBUF_SIZE];	/* Character(s) used to separate exit names */
 	char	help_separator[SBUF_SIZE];	/* Character(s) used to separate exit names */
@@ -730,6 +734,7 @@ struct statedata {
         int	totem_slots[TOTEM_SLOTS];/* totem slots */
 	int	errornum;
 	int	attr_next;	/* Next attr to alloc when freelist is empty */
+	int	no_space_compress;	/* State data to not allow space compress */
 	BQUE	*qfirst;	/* Head of player queue */
 	BQUE	*qlast;		/* Tail of player queue */
 	BQUE	*qlfirst;	/* Head of object queue */

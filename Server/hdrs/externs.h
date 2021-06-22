@@ -432,6 +432,7 @@ extern void  	FDECL(trigger_cluster_action, (dbref, dbref));
 extern char *   FDECL(encode_utf8, (char *));
 extern char * 	FDECL(utf8toucp, (char *));
 extern char * 	FDECL(ucptoutf8, (char *));
+extern char     FDECL(ucs32toascii, (long));
 
 /* From boolexp.c */
 extern int	FDECL(eval_boolexp, (dbref, dbref, dbref, BOOLEXP *, int));
@@ -1199,6 +1200,9 @@ extern int      FDECL(mush_crypt_validate, (dbref, const char *, const char *, i
 #define MLOG_FILE	8	/* Specify file name for manual log (128 chars max) */
 #define MLOG_ROOM	16	/* Log Room's output */
 
+/* This will be a bitwise mask for any mask handling for raw parsing */
+#define PREPARSE_RAW	0x00000001	/* PreParse handler for raw */
+
 #define LOGROTATE_STATUS 1	/* Status of current log */
 
 #define BLACKLIST_LIST	1	/* List blacklist */
@@ -1215,6 +1219,13 @@ extern int      FDECL(mush_crypt_validate, (dbref, const char *, const char *, i
 #define WAIT_RECPID	4	/* Record PID of wait to specified setq register */
 
 #define THAW_DEL	1	/* Drop the frozen FTIME pid process */
+
+#define CRC32_SHOW	1	/* Show crc32 */
+#define CRC32_CALC	2	/* Calc crc32 */
+#define CRC32_CHECK	4	/* Check crc32 */
+#define CRC32_SET	8	/* Set crc32 */
+#define CRC32_UPDATE	16	/* Update crc32 */
+#define CRC32_FSET  	32	/* Force set crc32 */
 
 #define DYN_PARSE       1	/* Parse the help */
 #define DYN_SEARCH	2	/* Issue a contextual search of help */

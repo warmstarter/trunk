@@ -99,6 +99,7 @@ void FDECL(dump_rusers, (DESC * call_by));
 
 #endif
 
+/* These functions only strip RAW ansi.  Leave this as it is or shit breaks */
 extern char *
 strip_ansi2(const char *raw)
 {
@@ -122,6 +123,7 @@ strip_ansi2(const char *raw)
     RETURN(buf); /* #98 */
 }
 
+/* These functions only strip RAW ansi.  Leave this as it is or shit breaks */
 extern char *
 strip_ansi(const char *raw)
 {
@@ -145,6 +147,7 @@ strip_ansi(const char *raw)
     RETURN(buf); /* #98 */
 }
 
+/* These functions only strip RAW ansi.  Leave this as it is or shit breaks */
 #ifdef ZENTY_ANSI
 extern char *
 strip_safe_accents(const char *raw)
@@ -4925,6 +4928,11 @@ check_connect(DESC * d, const char *msg, int key, int i_attr)
                log_text(buff);
                free_mbuf(buff);
             ENDLOG
+            if (!mudconf.pcreate_paranoia_fail) {
+               if (mudconf.max_pcreate_lim != -1) 
+                  if(mudstate.last_pcreate_cnt > 0)
+                     mudstate.last_pcreate_cnt--;
+            }
          } else {
             STARTLOG(LOG_LOGIN | LOG_PCREATES, "CON", "CREA")
                buff = alloc_mbuf("check_conn.LOG.create");
@@ -5075,7 +5083,7 @@ do_command(DESC * d, char *command)
     char *arg, *cmdsave, *time_str, *s_rollback, *s_dtime, *addroutbuf, *addrsav,
          *s_sitetmp, *s_sitebuff;
     int retval, cval, gotone, store_perm, chk_perm, i_rollback, i_jump,
-        maxsitecon, i_retvar, i_valid, aflags;
+        maxsitecon, i_retvar, i_valid, aflags, no_space;
     struct SNOOPLISTNODE *node;
     struct sockaddr_in p_sock;
     struct in_addr p_addr;
@@ -5540,8 +5548,13 @@ do_command(DESC * d, char *command)
                i_jump = mudstate.jumpst;
                mudstate.jumpst = mudstate.rollbackcnt = 0;
                strcpy(mudstate.rollback, command);
+               no_space = mudstate.no_space_compress;
+               if ( *command == '}' ) {
+                  mudstate.no_space_compress = 1;
+               }
 	       process_command(d->player, d->player, 1,
-			       command, (char **) NULL, 0, mudstate.shell_program, mudstate.no_hook);
+			       command, (char **) NULL, 0, mudstate.shell_program, mudstate.no_hook, mudstate.no_space_compress);
+               mudstate.no_space_compress = no_space;
                mudstate.rollbackcnt = i_rollback;
                mudstate.jumpst = i_jump;
                strcpy(mudstate.rollback, s_rollback);

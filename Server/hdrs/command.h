@@ -52,6 +52,7 @@ CMD_NO_ARG(do_comment);			/* Ignore argument and do nothing */
 CMD_TWO_ARG(do_convert);
 CMD_TWO_ARG_ARGV(do_cpattr);
 CMD_TWO_ARG(do_create);			/* Create a new object */
+CMD_TWO_ARG(do_crc32obj);		/* Make/Show/Update CRC32 on object */
 CMD_ONE_ARG(do_cut);			/* Truncate contents or exits list */
 CMD_NO_ARG(do_dbck);			/* Consistency check */
 CMD_NO_ARG(do_dbclean);			/* Clean unused attributes -- piggy as shit */
@@ -330,6 +331,6 @@ typedef struct aliasentry {
 #define QUITPRG_QUIET	0x00000001	/* silently quitprogram target */
 
 extern int	FDECL(check_access, (dbref, int, int, int));
-extern void	FDECL(process_command, (dbref, dbref, int, char *, char *[], int, int, int));
+extern void	FDECL(process_command, (dbref, dbref, int, char *, char *[], int, int, int, int));
 
 #endif

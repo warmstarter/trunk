@@ -740,7 +740,6 @@ static struct PENN_COLORMAP penn_namecolors[]= {
    {"grey100",  231},
    {"honeydew", 255 },
    {"honeydew1", 255 },
-   {"honeydew2",  194},
    {"honeydew2", 254 },
    {"honeydew3", 251 },
    {"honeydew4", 102 },
@@ -4840,9 +4839,13 @@ FUNCTION(fun_textfile)
 
    it = player;
    t_val = i_suggest = 0;
-   if ( nfargs > 2 && *fargs[2] ) {
+   if ( (nfargs > 2) && *fargs[2] ) {
       t_val = atoi(fargs[2]);
-      t_val = (((t_val < 0) || (t_val > 2)) ? 0 : t_val);
+      t_val = (((t_val < 0) || (t_val > 7)) ? 0 : t_val);
+      if ( t_val & 4 ) {
+         t_val &= ~4;
+         t_val |= DYN_QUERY;
+      }
    }
    t_bufptr = t_buff = alloc_lbuf("fun_textfile");
    tmp_buff = alloc_lbuf("fun_textfile2");
@@ -4908,7 +4911,11 @@ FUNCTION(fun_dynhelp)
    t_val = i_suggest = 0;
    if ( (nfargs > 3) && *fargs[3] ) {
       t_val = atoi(fargs[3]);
-      t_val = (((t_val < 0) || (t_val > 2)) ? 0 : t_val);
+      t_val = (((t_val < 0) || (t_val > 7)) ? 0 : t_val);
+      if ( t_val & 4 ) {
+         t_val &= ~4;
+         t_val |= DYN_QUERY;
+      }
    }
    if ( (nfargs > 4) && *fargs[4] ) {
       i_suggest = atoi(fargs[4]);
@@ -7657,6 +7664,242 @@ unsigned int CRC32_ProcessBuffer( unsigned int ulCrc, const void *arg_pBuffer, u
        ulCrc  = CRC32_Table[((unsigned char)*pBuffer++) ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
     }
     return ~ulCrc;
+}
+
+
+FUNCTION(fun_crc32obj)
+{
+   unsigned int ulCRC32, ulCRC32cmp;
+   char *as, *s_buff, *s_tmp, *s_passwd, *s_passtok, *s_passtokr, *s_store, *s_storeptr;
+   dbref aowner, thing;
+   int anum, anumsave, anumignore1, anumignore2, aflags, i_len, i_store;
+   ATTR *ap, *ap2;
+
+   if (!fn_range_check("CRC32OBJ", nfargs, 2, 4, buff, bufcx)) 
+      return;
+
+   thing = match_thing(player, fargs[0]);
+   if ( !Good_chk(thing) || !Controls(player, thing) ) {
+      safe_str((char *)"#-1 PERMISSION DENIED", buff, bufcx);
+      return;
+   }
+
+   if ( stricmp(fargs[1], "SHOW") ) {
+     if (mudstate.last_cmd_timestamp == mudstate.now) {
+         mudstate.heavy_cpu_recurse += 1;
+      }
+   }
+   if ( mudstate.heavy_cpu_recurse > mudconf.heavy_cpu_max ) {
+      safe_str("#-1 HEAVY CPU RECURSION LIMIT EXCEEDED", buff, bufcx);
+      return;
+   }
+
+   if ( stricmp(fargs[1], "SET") && 
+        stricmp(fargs[1], "CHK") && 
+        stricmp(fargs[1], "CALC") && 
+        stricmp(fargs[1], "UPDATE") && 
+        stricmp(fargs[1], "SHOW") ) {
+      safe_str((char *)"#-1 SECOND ARG MUST BE SET, CHK, CALC, UPDATE, OR SHOW", buff, bufcx);
+      return;
+   }
+
+   if ( !stricmp(fargs[1], "SET") && (nfargs < 3) ) {
+      safe_str((char *)"#-1 SET REQUIRES THIRD ARGUMENT FOR PASSWD", buff, bufcx);
+      return;
+   }
+
+   if ( !stricmp(fargs[1], "UPDATE") && !Immortal(player) ) {
+      safe_str((char *)"#-1 PERMISSION DENIED", buff, bufcx);
+      return;
+   }
+
+   anumsave = -1;
+   i_store = 0;
+   ap2 = atr_str("__CRC32");
+   if ( ap2 ) {
+      anumsave = ap2->number;
+   }
+
+   if ( (anumsave == -1) && (nfargs < 3) && stricmp(fargs[1], "CALC") ) {
+      safe_str((char *)"#-1 NO CRC", buff, bufcx);
+      return;
+   }
+  
+   s_tmp = atr_get(thing, anumsave, &aowner, &aflags);
+   if ( !*s_tmp  && (nfargs < 3) && stricmp(fargs[1], "CALC") ) {
+      free_lbuf(s_tmp);
+      safe_str((char *)"#-1 NO CRC", buff, bufcx);
+      return;
+   }
+
+   if ( !*s_tmp && stricmp(fargs[1], "SET") && stricmp(fargs[1], "CALC")) {
+      free_lbuf(s_tmp);
+      safe_str((char *)"#-1 NO CRC", buff, bufcx);
+      return;
+   }
+
+   s_passtok = NULL;
+   if ( !*s_tmp && (nfargs >= 3) ) {
+      i_store = 1;
+      ulCRC32 = 0;
+      i_len = strlen(fargs[2]);
+      ulCRC32 = CRC32_ProcessBuffer(ulCRC32, fargs[2], i_len);
+      s_storeptr = s_store = alloc_lbuf("crc32obj_store");
+      uival(s_store, &s_storeptr, ulCRC32);
+   } else if ( stricmp(fargs[1], "CALC") ) {
+      s_passwd = strtok_r(s_tmp, " ", &s_passtokr);
+      if ( s_passwd ) {
+         s_passtok = strtok_r(NULL, " ", &s_passtokr);
+      }
+   
+      if ( !s_passtok ) {
+         free_lbuf(s_tmp);
+         safe_str((char *)"#-1 CORRUPTED CRC", buff, bufcx);
+         return;
+      }
+      if ( nfargs >= 3 ) {
+         ulCRC32 = 0;
+         i_len = strlen(fargs[2]);
+         ulCRC32 = CRC32_ProcessBuffer(ulCRC32, fargs[2], i_len);
+         ulCRC32cmp = (unsigned int)safe_atof(s_passwd);
+         if ( (ulCRC32 != ulCRC32cmp) && 
+              !((nfargs > 3) && Immortal(player) && (atoi(fargs[3]) > 0)) ) {
+            free_lbuf(s_tmp);
+            safe_str((char *)"#-1 INVALID CRC PASSWD", buff, bufcx);
+            return;
+         }
+         i_store = 1;
+         s_storeptr = s_store = alloc_lbuf("crc32obj_store");
+         uival(s_store, &s_storeptr, ulCRC32);
+      }
+   }
+
+   if ( !stricmp(fargs[1], "SHOW") ) {
+     if ( s_passtok ) {
+       safe_str(s_passtok, buff, bufcx);
+       free_lbuf(s_tmp);
+       return;
+     } else {
+       uival(buff, bufcx, ulCRC32);
+       free_lbuf(s_tmp);
+       return;
+     }
+   }
+
+   anumignore1 = anumignore2 = -1;
+   ap2 = atr_str("__ATTRPIPE");
+   if ( ap2 ) {
+      anumignore1 = ap2->number;
+   }
+
+   ap2 = atr_str("_IDLESTAMP");
+   if ( ap2 ) {
+      anumignore2 = ap2->number;
+   }
+
+   ulCRC32 = 0;
+   s_buff = alloc_lbuf("crc32obj");
+   for (anum = atr_head(thing, &as); anum; anum = atr_next(&as)) {
+      ap = atr_num(anum);   
+      if ( !ap ) {
+         continue;
+      }
+       
+      if ( (ap->flags & AF_INTERNAL) ||
+           (ap->number == anumsave) ||
+           (ap->number == anumignore1) ||
+           (ap->number == anumignore2) ||
+           (ap->number == A_CHARGES) ||
+           (ap->number == A_MONEY) ||
+           (ap->number == A_LAST) ||
+           (ap->number == A_QUEUEMAX) ||
+           (ap->number == A_RQUOTA) ||
+           (ap->number == A_NAME) ||
+           (ap->number == A_SEMAPHORE) ||
+           (ap->number == A_QUOTA) ||
+           (ap->number == A_PRIVS) ||
+           (ap->number == A_LOGINDATA) ||
+           (ap->number == A_LASTSITE) ||
+           (ap->number == A_LAMBDA) ||
+           (ap->number == A_BCCMAIL) ||
+           (ap->number == A_MPSET) ||
+           (ap->number == A_MPASS) ||
+           (ap->number == A_LASTPAGE) ||
+           (ap->number == A_RETPAGE) ||
+           (ap->number == A_MCURR) ||
+           (ap->number == A_MQUOTA) ||
+           (ap->number == A_LQUOTA) ||
+           (ap->number == A_TQUOTA) ||
+           (ap->number == A_MTIME) ||
+           (ap->number == A_MSAVEMAX) ||
+           (ap->number == A_MSAVECUR) ||
+           (ap->number == A_IDENT) ||
+           (ap->number == A_TOTCMDS) ||
+           (ap->number == A_LSTCMDS) ||
+           (ap->number == A_MODIFY_TIME) ||
+           (ap->number == A_TOTCHARIN) ||
+           (ap->number == A_TOTCHAROUT) ||
+           (ap->number == A_LASTCREATE) ||
+           (ap->number == A_SAVESENDMAIL) ||
+           (ap->number == A_PROGBUFFER) ||
+           (ap->number == A_PROGPROMPT) ||
+           (ap->number == A_PROGPROMPTBUF) ||
+           (ap->number == A_TEMPBUFFER) ||
+           (ap->number == A_DESTVATTRMAX) ||
+           (ap->number == A_LASTIP) ||
+           (ap->number == A_OBJECTTAG) ||
+           (ap->number == A_CREATED_TIME) ||
+           (ap->number == A_MODIFY_TIME) ||
+           ((ap->number >= 252) && (ap->number <= 255)) ) {
+         continue;
+      }
+      (void) atr_get_str(s_buff, thing, ap->number, &aowner, &aflags);
+      i_len = strlen(s_buff);
+      ulCRC32 = CRC32_ProcessBuffer(ulCRC32, s_buff, i_len);
+   }
+   free_lbuf(s_buff);
+
+   if ( !i_store && !stricmp(fargs[1], "UPDATE") ) {
+      i_store = 1;
+      s_storeptr = s_store = alloc_lbuf("crc32obj_store");
+      safe_str(s_passwd, s_store, &s_storeptr);
+   }
+
+   if ( i_store ) {
+      safe_chr(' ', s_store, &s_storeptr);
+      uival(s_store, &s_storeptr, ulCRC32);
+      if ( anumsave == -1 ) {
+         anumsave = mkattr("__CRC32");
+      }
+      if ( anumsave < 0 ) {
+         notify_quiet(player, "#-1 UNABLE TO SET CRC");
+      } else {
+         atr_add_raw(thing, anumsave, s_store);
+         atr_set_flags(thing, anumsave, AF_INTERNAL|AF_GOD);
+         uival(buff, bufcx, ulCRC32);
+      }
+      free_lbuf(s_store);
+   } else {
+      if ( !stricmp(fargs[1], "CALC") ) { 
+         uival(buff, bufcx, ulCRC32);
+      } else {
+         if ( s_passtok ) {
+            if ( (unsigned int)safe_atof(s_passtok) == ulCRC32 ) {
+               uival(buff, bufcx, ulCRC32);
+               safe_str(" CRC OK", buff, bufcx);
+            } else {
+               uival(buff, bufcx, ulCRC32);
+               safe_str(" CRC MISSMATCH [", buff, bufcx);
+               uival(buff, bufcx, (unsigned int)safe_atof(s_passtok));
+               safe_chr(']', buff, bufcx);
+            }
+         } else {
+            uival(buff, bufcx, ulCRC32);
+            safe_str(" CRC OK", buff, bufcx);
+         }
+      }
+   }
+   free_lbuf(s_tmp);
 }
 
 FUNCTION(fun_crc32)
@@ -11012,15 +11255,14 @@ FUNCTION(fun_printf)
 #define MUSH_TDAY	30.416667
 FUNCTION(fun_timefmt)
 {
-  char* pp;
+  char *pp, *fmtbuff, *s_aptz, *s_aptztmp;
   time_t secs, i_frell;
   double secs2;
-  char* fmtbuff;
-  int formatpass = 0;
-  int fmterror = 0;
-  int fmtdone = 0;
+  int formatpass = 0, fmterror = 0, fmtdone = 0, i_aptz, aflags;
+  dbref aowner;
   long l_offset = 0;
   TZONE_MUSH *tzmush;
+  ATTR *aptz;
   struct tm *tms, *tms2, *tms3;
 
   static char* shortdayname[] = { "Sun", "Mon", "Tue", "Wed",
@@ -11047,6 +11289,7 @@ FUNCTION(fun_timefmt)
   secs2 = safe_atof(fargs[1]);
   /* tms2 = localtime(&secs); */
   tms2 = localtime(&mudstate.now);
+
 
   tzmush = NULL;
   i_frell = 0;
@@ -11078,10 +11321,37 @@ FUNCTION(fun_timefmt)
   }
  
   if ( !tzmush ) {
+     s_aptz = alloc_lbuf("timefmt_tzmatch");
+     aptz = atr_str("TZ");
+     if ( aptz ) {
+        s_aptztmp = atr_pget(player, aptz->number, &aowner, &aflags);
+        sprintf(s_aptz, " %s ", s_aptztmp);
+        free_lbuf(s_aptztmp);
+        s_aptztmp = s_aptz;
+        while ( *s_aptztmp ) {
+           *s_aptztmp = ToUpper(*s_aptztmp);
+           s_aptztmp++;
+        }
+     }
+     
+     /* Test against player's specific timezones */
+     s_aptztmp = alloc_sbuf("timeffmt_tzmatch");
+     i_aptz = 0;
      for ( tzmush = timezone_list; tzmush->mush_tzone != NULL; tzmush++ ) {
-/*      if ( tzmush->mush_offset == -(timezone) ) { */
-        if ( (int)(tzmush->mush_offset) == -((int)timezone) ) {
+        sprintf(s_aptztmp, " %.20s ", tzmush->mush_tzone);
+        if ( (strstr(s_aptz, s_aptztmp) != NULL) && ((int)(tzmush->mush_offset) == -((int)timezone)) ) {
+           i_aptz = 1;
            break;
+        }
+     }
+     free_sbuf(s_aptztmp);
+     free_lbuf(s_aptz);
+
+     if ( !i_aptz ) {
+        for ( tzmush = timezone_list; tzmush->mush_tzone != NULL; tzmush++ ) {
+           if ( (int)(tzmush->mush_offset) == -((int)timezone) ) {
+              break;
+           }
         }
      }
   }
@@ -19055,11 +19325,11 @@ FUNCTION(fun_race)
 FUNCTION(fun_name)
 {
     dbref it;
-    int i_flags;
     char *s;
     char *namebuff,
          *namebufcx;
 #ifdef USE_SIDEEFFECT
+    int i_flags;
     CMDENT *cmdp;
 #endif
 
@@ -25140,6 +25410,28 @@ FUNCTION(fun_ldepowers)
     }
 }
 
+FUNCTION(fun_limits)
+{
+    char *s_chkattr;
+    int aflags;
+    dbref target, aowner;
+
+    target = lookup_player(player, fargs[0], 0);
+    if ( !Good_chk(target) || !controls(player, target)) {
+       safe_str("#-1", buff, bufcx);
+       return;
+    }
+
+    s_chkattr = NULL;
+    s_chkattr = atr_get(target, A_DESTVATTRMAX, &aowner, &aflags);
+
+    if( *s_chkattr)
+       safe_str(s_chkattr, buff, bufcx);
+    else
+       safe_str("0 -2 0 -2 -2", buff, bufcx);
+    free_lbuf(s_chkattr);
+}
+
 FUNCTION(fun_error)
 {
     dbref target;
@@ -29904,6 +30196,31 @@ FUNCTION(fun_map)
  * fun_edit: Edit text.
  */
 
+FUNCTION(fun_medit)
+{
+    char *tstr, *tbuff;
+    int i_args;
+
+    if ( (nfargs < 3) || ((nfargs % 2) == 0) ) {
+       safe_str((char*)"#-1 FUNCTION (MEDIT) EXPECTS AN ODD NUMBER OF ARGUMENTS OF 3 OR MORE [RECEIVED ", buff, bufcx);
+       ival(buff, bufcx, nfargs);
+       safe_chr(']', buff, bufcx);
+       return;
+    }
+    
+    tbuff = alloc_lbuf("fun_medit_buffer");
+    strcpy(tbuff, fargs[0]);
+    i_args = 1;
+    while ( i_args < nfargs ) {
+       edit_string(tbuff, &tstr, (char **)NULL, fargs[i_args], fargs[i_args+1], 1, 0, 0, 0);
+       strcpy(tbuff, tstr);
+       free_lbuf(tstr);
+       i_args+=2;
+   }
+   safe_str(tbuff, buff, bufcx);
+   free_lbuf(tbuff);
+}
+
 FUNCTION(fun_edit)
 {
     char *tstr;
@@ -30759,9 +31076,10 @@ FUNCTION(fun_beep)
     safe_str(tbuf1, buff, bufcx);
 }
 
+#ifdef ZENTY_ANSI
 static const unsigned char AccentCombo2[256] =
 {   
-/*  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F   */
+//  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F 
 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 0
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1
@@ -30780,19 +31098,17 @@ static const unsigned char AccentCombo2[256] =
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // D
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // E
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   // F
-};  
-
+}; 
+#endif
 
 FUNCTION(fun_accent)
 {
-#ifdef ZENTY_ANSI
-   char *p_ptr, p_oldptr, p_oldptr2, *p_ptr2;
-   int i_inaccent;
-#endif
-
 #ifndef ZENTY_ANSI
    safe_str(fargs[0], buff, bufcx);
 #else
+   char *p_ptr, p_oldptr, p_oldptr2, *p_ptr2;
+   int i_inaccent;
+
    p_ptr2 = fargs[0];
    p_ptr = fargs[1];
    p_oldptr2 = p_oldptr = '\0';
@@ -33644,6 +33960,84 @@ FUNCTION(fun_setq_old)
        }
     }
 #endif
+}
+
+FUNCTION(fun_args)
+{
+   int i, i_first, i_low, i_high, i_arglist;
+   static int i_args[1000];
+   char *s_strtok, *s_strtokr, *s_tmp, *s_after, *s_osep;
+
+   if (!fn_range_check("ARGS", nfargs, 1, 2, buff, bufcx))
+      return;
+
+   memset(i_args, 0, sizeof(i_args));
+
+   s_tmp = alloc_lbuf("fun_args");
+   strcpy(s_tmp, fargs[0]);
+   s_strtok = strtok_r(s_tmp, " \t", &s_strtokr);
+   i_arglist = 0;
+   
+   s_osep = (char *)" ";
+   if ( (nfargs > 1) && *fargs[1] ) {
+      s_osep = fargs[1];
+   }
+   while ( s_strtok && *s_strtok ) {
+      if ( (s_after = strchr(s_strtok, '-')) != NULL ) {
+         *s_after = '\0';
+         s_after++;
+         if ( !is_number(s_strtok) || !is_number(s_after) ) {
+            s_strtok = strtok_r(NULL, " \t", &s_strtokr);
+            continue;
+         }
+         i_low = i_high = -1;
+      /* Do ranges */
+         i_low = atoi(s_strtok);
+         i_high = atoi(s_after);
+         if ( i_low < 0 )
+            i_low = 0;
+         if ( i_high < 0 )
+            i_high = 0;
+         if ( i_low > 999 )
+            i_low = 999;
+         if ( i_high > 999 )
+            i_high = 999;
+         if ( i_low > i_high ) {
+            for ( i = i_low; i >= i_high; i-- ) {
+               i_args[i] = 1;
+            }
+         } else {
+            for ( i = i_low; i <= i_high; i++ ) {
+               i_args[i] = 1;
+            }
+         }
+      } else {
+         if ( is_number(s_strtok) ) {
+            i_high = atoi(s_strtok);
+            if ( i_high < 0 )
+               i_high = 0;
+            if ( i_high > 999 )
+               i_high = 999;
+            i_args[i_high] = 1;
+         }
+      }
+      i_arglist = 1;
+      s_strtok = strtok_r(NULL, " \t", &s_strtokr);
+   }
+   free_lbuf(s_tmp);
+
+   i_first = 0;
+   for ( i=0; i < ncargs; i++ ) {
+      if ( cargs[i] ) {
+         if ( !i_arglist || (i_arglist && i_args[i]) ) {
+            if ( i_first ) {
+               safe_str(s_osep, buff, bufcx);
+            }
+            i_first = 1;
+            safe_str(cargs[i], buff, bufcx);
+         }
+      }
+   }
 }
 
 FUNCTION(fun_setq)
@@ -37470,6 +37864,7 @@ FUN flist[] =
     {"ANSIPOS", fun_ansipos, 2, 0, CA_PUBLIC, 0},
     {"APOSS", fun_aposs, 1, 0, CA_PUBLIC, 0},
     {"ARRAY", fun_array, 3, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
+    {"ARGS", fun_args, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"ART", fun_art, 1, FN_VARARGS, CA_PUBLIC, 0},
     {"ASC", fun_asc, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"ASIN", fun_asin, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
@@ -37568,6 +37963,7 @@ FUN flist[] =
     {"COSH", fun_cosh, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"COUNTSPECIAL", fun_countspecial, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"CRC32", fun_crc32, 1,  FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
+    {"CRC32OBJ", fun_crc32obj, 2,  FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"CREPLACE", fun_creplace, 0, FN_VARARGS | FN_NO_EVAL, CA_PUBLIC, CA_NO_CODE},
 #ifdef USE_SIDEEFFECT
     {"CREATE", fun_create, 1, FN_VARARGS, CA_PUBLIC, 0},
@@ -37724,6 +38120,7 @@ FUN flist[] =
 #endif
     {"LEXITS", fun_lexits, 1, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"LFLAGS", fun_lflags, 1, 0, CA_PUBLIC, CA_NO_CODE},
+    {"LIMITS", fun_limits, 1, 0, CA_WIZARD, 0},
 #ifdef USE_SIDEEFFECT
     {"LINK", fun_link, 2, 0, CA_PUBLIC, 0},
 #endif
@@ -37800,6 +38197,7 @@ FUN flist[] =
     {"MASK", fun_mask, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"MATCH", fun_match, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"MAX", fun_max, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
+    {"MEDIT", fun_medit, 3, FN_VARARGS, CA_PUBLIC, 0},
     {"MEMBER", fun_member, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"MERGE", fun_merge, 3, 0, CA_PUBLIC, CA_NO_CODE},
     {"MID", fun_mid, 3, FN_VARARGS, CA_PUBLIC, 0},
@@ -38047,7 +38445,9 @@ FUN flist[] =
     {"TOOCT", fun_tooct, 1, 0, CA_PUBLIC, CA_NO_CODE},
     {"TOTCMDS", fun_totcmds, 1, 0, CA_PUBLIC, CA_NO_CODE},
     {"TOTEMS", fun_totems, 1, 0, CA_PUBLIC, CA_NO_CODE},
+#ifdef USE_SIDEEFFECT
     {"TOTEMSET", fun_totemset, 2, 0, CA_PUBLIC, CA_NO_CODE},
+#endif
     {"TOTMATCH", fun_totmatch, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"TOTWILDMATCH", fun_totwildmatch, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},
     {"TOTMEMBER", fun_totmember, 0, FN_VARARGS, CA_PUBLIC, CA_NO_CODE},

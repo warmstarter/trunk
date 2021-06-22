@@ -279,6 +279,7 @@ NDECL(cf_init)
     mudconf.switch_substitutions = 0;
     mudconf.ifelse_substitutions = 0;
     mudconf.sideeffects = 32;  /* Enable only list() by default */
+    mudconf.raw_formatting = 1;       /* Allow raw formatting via } command */
     mudconf.sidefx_returnval = 0; /* sideeffects that create return dbref# if enabled */
     mudconf.safer_passwords = 0; /* If enabled, requires tougher to guess passwords */
     mudconf.sidefx_maxcalls = 1000; /* Maximum sideeffects allowed in a command */
@@ -292,6 +293,7 @@ NDECL(cf_init)
     mudconf.lcon_checks_dark = 0; /* lcon/xcon check dark/unfindable */
     mudconf.mail_hidden = 0;	/* mail/anon hidden who is sent to */
     mudconf.enforce_unfindable = 0; /* Enforce unfindable for locate crap */
+    mudconf.enforce_checksums = 0; /* Enforce checksums on command matching */
     mudconf.zones_like_parents = 0; /* Make zones search like @parents */
     mudconf.sub_override = 0;		/* %-sub override */
     mudconf.round_kludge = 0; /* Kludge workaround to fix rounding 2.5 to 2. [Loki] */
@@ -328,6 +330,7 @@ NDECL(cf_init)
     mudconf.mysql_delay = 0;		/* Toggle to turn on/off delay > 0 sets delay */
     mudconf.name_with_desc = 0;		/* Enable state to allow looking at names of things you can't examine */
     mudconf.proxy_checker = 0;		/* Proxy Checker -- Not very reliable */
+    mudconf.idle_cmdcount = -1;  /* Make repeated commands not touch idle time */
     mudconf.idle_stamp = 0;             /* Enable for idle checking on players */
     mudconf.idle_stamp_max = 10;        /* Enable for idle checking on players 10 max default */
     mudconf.penn_setq = 0;		/* Penn compatible setq/setr functions */
@@ -385,6 +388,7 @@ NDECL(cf_init)
     for ( i = 0; i < TOTEM_SLOTS; i++ ) {
        mudstate.totem_slots[i] = 0;
     }
+    mudstate.no_space_compress = 0;	/* Override space compression */
     mudstate.no_announce = 0;		/* Do not broadcast announcements */
     mudstate.global_error_inside = 0;	/* Global Error Object is being executed */
     mudstate.nested_control = 0;	/* Nested controlocks - 50 hardcode ceiling */
@@ -716,6 +720,7 @@ NDECL(cf_init)
     mudstate.api_lastsite_cnt = 0;
     mudconf.lastsite_paranoia = 0; /* 0-off, 1-register, 2-forbid */
     mudconf.pcreate_paranoia = 0; /* 0-off, 1-register, 2-forbid */
+    mudconf.pcreate_paranoia_fail = 1; /* Be paranoid even about failed creates */
     mudconf.max_lastsite_cnt = 20;	/* Shouldn't connect more than 20 times in X period */
     mudconf.max_lastsite_api = 60;	/* API Shouldn't connect more than 60 times in X period */
     mudconf.min_con_attempt = 60;	/* 60 seconds default */
@@ -4276,6 +4281,9 @@ CONF conftable[] =
     {(char *) "elements_compat",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.elements_compat, 0, 0, CA_PUBLIC,
      (char *) "Enable elements() compatibility to elementsmux?"},
+    {(char *) "enforce_checksums",
+     cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.enforce_checksums, 0, 0, CA_PUBLIC,
+     (char *) "Are CRC checksums required for $commands?"},
     {(char *) "enforce_unfindable",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.enforce_unfindable, 0, 0, CA_PUBLIC,
      (char *) "Is UNFINDABLE/DARK enforced for locations?"},
@@ -4591,6 +4599,9 @@ CONF conftable[] =
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.icmd_obj, 0, 0, CA_PUBLIC,
      (char *) "The dbref# of the @icmd object.\r\n"\
               "                             Default: -1    Value: %d"},
+    {(char *) "idle_cmdcount",
+     cf_int, CA_GOD | CA_IMMORTAL, &mudconf.idle_cmdcount, 0, 0, CA_PUBLIC,
+     (char *) "Do repetitive commands not count towards idle time?"},
     {(char *) "idle_message",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.idle_message, 0, 0, CA_WIZARD,
      (char *) "Do wizards receive message when idled out?"},
@@ -5041,6 +5052,9 @@ CONF conftable[] =
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.pcreate_paranoia, 0, 0, CA_WIZARD,
      (char *) "Define DoS create paranoia level (0, 1, 2).\r\n"\
               "                             Default: 0   Value: %d"},
+    {(char *) "pcreate_paranoia_fail",
+     cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.pcreate_paranoia_fail, 0, 0, CA_WIZARD,
+     (char *) "Be paranoid even about failed creates?"},
     {(char *) "pemit_far_players",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.pemit_players, 0, 0, CA_PUBLIC,
      (char *) "Can you @pemit remotely to players?"},
@@ -5154,6 +5168,9 @@ CONF conftable[] =
     {(char *) "quotas",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.quotas, 0, 0, CA_PUBLIC,
      (char *) "Are @quotas being used?"},
+    {(char *) "raw_formatting",
+     cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.raw_formatting, 0, 0, CA_PUBLIC,
+      (char *) "Allow } to do raw input formatting?"},
     {(char *) "rollbackmax",
      cf_verifyint, CA_GOD | CA_IMMORTAL, &mudconf.rollbackmax, 10000, 10, CA_WIZARD,
      (char *) "Max rollback (retry) count allowed.\r\n"\
@@ -5330,7 +5347,7 @@ CONF conftable[] =
      (char *) "Does signal USR1 optionally read cron file?"},
     {(char *) "space_compress",
      cf_bool, CA_GOD | CA_IMMORTAL, &mudconf.space_compress, 0, 0, CA_PUBLIC,
-     (char *) "Spaces compressed?"},
+     (char *) "Spaces compressed (overridden with no_space_compress state)?"},
     {(char *) "spam_limit",
      cf_int, CA_GOD | CA_IMMORTAL, &mudconf.spam_limit, 0, 0, CA_PUBLIC,
      (char *) "Ceiling of commands per minute..\r\n"\
